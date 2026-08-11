@@ -48,11 +48,6 @@ type V1AnalyticsResponse struct {
 	Result string `json:"result"`
 }
 
-package main
-
-import "time"
-
-
 type ReqAnaType string
 
 const (
