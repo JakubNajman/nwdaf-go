@@ -6,16 +6,14 @@ import (
 	"net/http"
 )
 
-var store = NewSubscriptionStore()
-
-func newV1AnalyticsRequest() V1AnalyticsRequest {
+func (s *Server) newV1AnalyticsRequest() V1AnalyticsRequest {
 	return V1AnalyticsRequest{
 		ReqAnaType: "HIST",
 		ReqPeriod:  "PT5M",
 	}
 }
 
-func V1Health(w http.ResponseWriter, r *http.Request) {
+func (s *Server) V1Health(w http.ResponseWriter, r *http.Request) {
 	resp := V1HealthResponse{
 		Status:        "ok",
 		NRF:           "mockNRF",
@@ -28,8 +26,8 @@ func V1Health(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-func V1Analytics(w http.ResponseWriter, r *http.Request) {
-	req := newV1AnalyticsRequest()
+func (s *Server) V1Analytics(w http.ResponseWriter, r *http.Request) {
+	req := s.newV1AnalyticsRequest()
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"status":400,"detail":"bad json"}`, http.StatusBadRequest)
@@ -49,7 +47,7 @@ func V1Analytics(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func V1SubscriptionCreate(w http.ResponseWriter, r *http.Request) {
+func (s *Server) V1SubscriptionCreate(w http.ResponseWriter, r *http.Request) {
 	var req SubscriptionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -66,16 +64,16 @@ func V1SubscriptionCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := store.Add(req)
+	resp := s.store.Add(req)
 	log.Printf("[Sub] Created %s for %s → %s", resp.SubscriptionId, req.AnalyticsId, req.NotificationUri)
 
 	writeJSON(w, http.StatusCreated, resp) // 201
 }
 
-func V1SubscriptionDelete(w http.ResponseWriter, r *http.Request) {
+func (s *Server) V1SubscriptionDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	deletion := store.Delete(id)
+	deletion := s.store.Delete(id)
 
 	if !deletion {
 		writeError(w, http.StatusNotFound, id+" not found")
@@ -86,7 +84,7 @@ func V1SubscriptionDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent) // 204
 }
 
-func V1SubscriptionUpdate(w http.ResponseWriter, r *http.Request) {
+func (s *Server) V1SubscriptionUpdate(w http.ResponseWriter, r *http.Request) {
 	var req SubscriptionRequest
 	id := r.PathValue("id")
 
@@ -104,7 +102,7 @@ func V1SubscriptionUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, succ := store.Update(id, req)
+	resp, succ := s.store.Update(id, req)
 	if !succ {
 		writeError(w, http.StatusBadRequest, "update failed")
 		return
@@ -114,19 +112,16 @@ func V1SubscriptionUpdate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, resp) // 202
 }
 
-func main() {
-	mux := http.NewServeMux()
+func (s *Server) V1SubscriptionList(w http.ResponseWriter, r *http.Request) {
+	subs := s.store.List()
+	writeJSON(w, http.StatusAccepted, map[string]any{"subscriptions": subs}) // 202
+}
 
-	mux.HandleFunc("GET /nnwdaf-analyticsinfo/v1/health", V1Health)
-	mux.HandleFunc("POST /nnwdaf-analyticsinfo/v1/analytics", V1Analytics)
-	mux.HandleFunc("POST /nnwdaf-eventssubscription/v1/subscriptions", V1SubscriptionCreate)
-	// mux.HandleFunc("GET /nnwdaf-eventssubscription/v1/subscriptions", V1SubscriptionList)
-	mux.HandleFunc("PUT /nnwdaf-eventssubscription/v1/subscriptions/{id}", V1SubscriptionUpdate)
-	mux.HandleFunc("DELETE /nnwdaf-eventssubscription/v1/subscriptions/{id}", V1SubscriptionDelete)
+func main() {
+	srv := NewServer()
 
 	log.Println("listening on :8080")
-
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	if err := http.ListenAndServe(":8080", srv.Routes()); err != nil {
 		log.Fatal(err)
 	}
 }
