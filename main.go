@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 )
@@ -37,7 +38,8 @@ func (s *Server) V1Analytics(w http.ResponseWriter, r *http.Request) {
 	if req.AnalyticsId == "" {
 		http.Error(w, `{"status":400,"detail":"analyticsId required"}`, http.StatusBadRequest)
 		return
-	} else if req.AnalyticsId != "ABNORMAL_BEHAVIOUR" && req.AnalyticsId != "NF_LOAD" {
+	}
+	if !req.AnalyticsId.IsValid() {
 		http.Error(w, `{"status":400,"detail":"unknown analyticsId"}`, http.StatusBadRequest)
 		return
 	}
@@ -55,12 +57,8 @@ func (s *Server) V1SubscriptionCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !req.AnalyticsId.IsValid() {
-		writeError(w, http.StatusBadRequest, "invalid analyticsId")
-		return
-	}
-	if req.NotificationUri == "" {
-		writeError(w, http.StatusBadRequest, "notificationUri required")
+	if err := validateSubscriptionRequest(req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -75,9 +73,14 @@ func (s *Server) V1SubscriptionDelete(w http.ResponseWriter, r *http.Request) {
 
 	deletion := s.store.Delete(id)
 
-	if !deletion {
-		writeError(w, http.StatusNotFound, id+" not found")
-		return
+	if deletion != nil {
+		if errors.Is(deletion, ErrSubscriptionNotFound) {
+			writeError(w, http.StatusNotFound, id+" not found")
+			return
+		} else {
+			writeError(w, http.StatusInternalServerError, deletion.Error())
+			return
+		}
 	}
 
 	log.Printf("[Sub] Removed %s", id)
@@ -93,17 +96,13 @@ func (s *Server) V1SubscriptionUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !req.AnalyticsId.IsValid() {
-		writeError(w, http.StatusBadRequest, "invalid analyticsId")
-		return
-	}
-	if req.NotificationUri == "" {
-		writeError(w, http.StatusBadRequest, "notificationUri required")
+	if err := validateSubscriptionRequest(req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	resp, succ := s.store.Update(id, req)
-	if !succ {
+	if succ != nil {
 		writeError(w, http.StatusBadRequest, "update failed")
 		return
 	}
