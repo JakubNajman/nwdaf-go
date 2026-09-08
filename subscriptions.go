@@ -56,26 +56,26 @@ func (s *SubscriptionStore) Add(req SubscriptionRequest) SubscriptionResponse {
 	}
 }
 
-func (s *SubscriptionStore) Get(id string) (SubscriptionRequest, bool) {
+func (s *SubscriptionStore) Get(id string) (SubscriptionRequest, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	sub, ok := s.Subscriptions[id]
 
 	if !ok {
-		return SubscriptionRequest{}, false
+		return SubscriptionRequest{}, ErrSubscriptionNotFound
 	}
-	return sub.Request, true
+	return sub.Request, nil
 }
 
-func (s *SubscriptionStore) Update(id string, req SubscriptionRequest) (SubscriptionResponse, bool) {
+func (s *SubscriptionStore) Update(id string, req SubscriptionRequest) (SubscriptionResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	sub, ok := s.Subscriptions[id]
 
 	if !ok {
-		return SubscriptionResponse{}, false
+		return SubscriptionResponse{}, ErrSubscriptionNotFound
 	}
 
 	sub.Request = req
@@ -84,21 +84,21 @@ func (s *SubscriptionStore) Update(id string, req SubscriptionRequest) (Subscrip
 		SubscriptionId: id,
 		AnalyticsId:    string(req.AnalyticsId),
 		Expiry:         req.Expiry,
-	}, true
+	}, nil
 }
 
-func (s *SubscriptionStore) Delete(id string) bool {
+func (s *SubscriptionStore) Delete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	_, ok := s.Subscriptions[id]
 
 	if !ok {
-		return false
+		return ErrSubscriptionNotFound
 	}
 
 	delete(s.Subscriptions, id)
-	return true
+	return nil
 }
 
 func (s *SubscriptionStore) List() []SubscriptionInfo {

@@ -17,13 +17,3 @@ func writeError(w http.ResponseWriter, status int, detail string) {
 		"detail": detail,
 	})
 }
-
-func validateSubscriptionRequest(req SubscriptionRequest) error {
-	if !req.AnalyticsId.IsValid() {
-		return ErrInvalidAnalyticsId
-	}
-	if req.NotificationUri == "" {
-		return ErrMissingNotifUri
-	}
-	return nil
-}
