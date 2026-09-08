@@ -77,10 +77,9 @@ func (s *Server) V1SubscriptionDelete(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(deletion, ErrSubscriptionNotFound) {
 			writeError(w, http.StatusNotFound, id+" not found")
 			return
-		} else {
-			writeError(w, http.StatusInternalServerError, deletion.Error())
-			return
 		}
+		writeError(w, http.StatusInternalServerError, deletion.Error())
+		return
 	}
 
 	log.Printf("[Sub] Removed %s", id)
@@ -101,19 +100,22 @@ func (s *Server) V1SubscriptionUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, succ := s.store.Update(id, req)
-	if succ != nil {
-		writeError(w, http.StatusBadRequest, "update failed")
+	resp, err := s.store.Update(id, req)
+	if err != nil {
+		if errors.Is(err, ErrSubscriptionNotFound) {
+			writeError(w, http.StatusNotFound, id+" not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	log.Printf("[Sub] Updated %s for %s → %s", resp.SubscriptionId, req.AnalyticsId, req.NotificationUri)
-	writeJSON(w, http.StatusAccepted, resp) // 202
+	writeJSON(w, http.StatusAccepted, resp) // OK
 }
 
 func (s *Server) V1SubscriptionList(w http.ResponseWriter, r *http.Request) {
 	subs := s.store.List()
-	writeJSON(w, http.StatusAccepted, map[string]any{"subscriptions": subs}) // 202
+	writeJSON(w, http.StatusAccepted, map[string]any{"subscriptions": subs}) // 2OK
 }
 
 func main() {
